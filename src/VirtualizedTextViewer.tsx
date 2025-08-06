@@ -12,10 +12,19 @@ export function VirtualizedTextViewer({ content }: VirtualizedTextViewerProps) {
   const [measuredHeights, setMeasuredHeights] = useState<Map<number, number>>(
     new Map(),
   )
+  const [measureElementReady, setMeasureElementReady] = useState(false)
 
   const lines = content.split("\n")
   const linesPerBlock = lines.length <= 50 ? 1 : 100
   const blocks = splitTextIntoBlocks(content, linesPerBlock)
+
+  // Callback ref to detect when measure element is ready
+  const measureElementCallbackRef = (element: HTMLPreElement | null) => {
+    measureElementRef.current = element
+    if (element && !measureElementReady) {
+      setMeasureElementReady(true)
+    }
+  }
 
   // Measure a block's actual height
   const measureBlock = (index: number): number => {
@@ -53,10 +62,18 @@ export function VirtualizedTextViewer({ content }: VirtualizedTextViewerProps) {
   // Clear measurements and scroll to top when content changes
   useEffect(() => {
     setMeasuredHeights(new Map())
+    setMeasureElementReady(false)
     if (content && parentRef.current) {
       parentRef.current.scrollTop = 0
     }
   }, [content])
+
+  // Force virtualizer to remeasure when measure element becomes ready
+  useEffect(() => {
+    if (measureElementReady) {
+      virtualizer.measure()
+    }
+  }, [measureElementReady, virtualizer])
 
   if (!content) {
     return (
@@ -72,7 +89,7 @@ export function VirtualizedTextViewer({ content }: VirtualizedTextViewerProps) {
     >
       {/* Hidden element for measuring text height */}
       <pre
-        ref={measureElementRef}
+        ref={measureElementCallbackRef}
         className="whitespace-pre font-mono text-sm leading-5 m-0 absolute invisible"
         style={{
           top: -9999,
