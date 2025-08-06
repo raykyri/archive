@@ -6,6 +6,7 @@ import React, { useState, useCallback, useEffect, useRef } from "react"
 import { formatFileSize, isBinary } from "./helpers"
 import { VirtualizedTextViewer } from "./VirtualizedTextViewer"
 import { archiveCache } from "./indexedDbCache"
+import { getTwitterArchiveItemCount, parseTwitterAccount } from "./twitterArchiveParser"
 
 // Set initial theme based on system preference
 if (window.matchMedia("(prefers-color-scheme: dark)").matches) {
@@ -216,6 +217,15 @@ function App() {
     new Set(["data"]),
   )
   const directoryListRef = useRef<HTMLDivElement>(null)
+  const [twitterCounts, setTwitterCounts] = useState<Record<string, number>>({})
+  const [accountInfo, setAccountInfo] = useState<{
+    email: string
+    createdVia: string
+    username: string
+    accountId: string
+    createdAt: string
+    accountDisplayName: string
+  } | null>(null)
 
   useEffect(() => {
     if (hasInitialized.current) return
@@ -389,6 +399,69 @@ function App() {
     setCurrentView("about")
   }, [])
 
+  const openFile = useCallback((filePath: string) => {
+    const fileEntry = files.find(f => f.path === filePath)
+    if (fileEntry) {
+      handleFileClick(fileEntry)
+    }
+  }, [files, handleFileClick])
+
+  // Parse Twitter archive files to get counts and account info
+  const parseTwitterArchiveData = useCallback(async () => {
+    const twitterFiles = [
+      'data/like.js',
+      'data/tweets.js',
+      'data/mute.js',
+      'data/block.js',
+      'data/direct-messages.js',
+      'data/follower.js',
+      'data/following.js'
+    ]
+    
+    const counts: Record<string, number> = {}
+    
+    for (const filePath of twitterFiles) {
+      const file = files.find(f => f.path === filePath)
+      if (file) {
+        try {
+          const uint8 = await file.entry.arrayBuffer()
+          const content = new TextDecoder().decode(new Uint8Array(uint8))
+          const count = getTwitterArchiveItemCount(content)
+          counts[filePath] = count
+        } catch (error) {
+          console.error(`Error parsing ${filePath}:`, error)
+          counts[filePath] = 0
+        }
+      }
+    }
+    
+    setTwitterCounts(counts)
+
+    // Parse account.js for account information
+    const accountFile = files.find(f => f.path === 'data/account.js')
+    if (accountFile) {
+      try {
+        const uint8 = await accountFile.entry.arrayBuffer()
+        const content = new TextDecoder().decode(new Uint8Array(uint8))
+        const account = parseTwitterAccount(content)
+        setAccountInfo(account)
+      } catch (error) {
+        console.error('Error parsing account.js:', error)
+        setAccountInfo(null)
+      }
+    }
+  }, [files])
+
+  // Parse Twitter data when files change
+  useEffect(() => {
+    if (files.length > 0) {
+      parseTwitterArchiveData()
+    } else {
+      setTwitterCounts({})
+      setAccountInfo(null)
+    }
+  }, [files, parseTwitterArchiveData])
+
   const handleKeyDown = useCallback(
     (event: KeyboardEvent) => {
       if (visibleFiles.length === 0) return
@@ -454,43 +527,71 @@ function App() {
     }
   }, [handleKeyDown])
 
-  const AboutPage = () => (
-    <div className="p-6 max-w-2xl">
-      <h1 className="text-2xl font-bold mb-6">Archive Summary</h1>
-      <div className="space-y-4">
-        <div className="grid grid-cols-2 gap-4">
-          <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded">
-            <h3 className="font-semibold mb-2">Account Info</h3>
-            <div className="space-y-1 text-sm">
-              <div>Handle: @placeholder_user</div>
-              <div>Archive Date: Jan 15, 2024</div>
-              <div>Archive Size: 125.3 MB</div>
+  const AboutPage = () => {
+    const formatCount = (count: number | undefined) => count !== undefined ? count.toLocaleString() : '--'
+    
+    const formatDate = (dateString: string) => {
+      try {
+        return new Date(dateString).toLocaleDateString()
+      } catch {
+        return 'sample'
+      }
+    }
+
+    const ClickableCount = ({ filePath, children }: { filePath: string, children: React.ReactNode }) => {
+      const fileExists = files.some(f => f.path === filePath)
+      if (!fileExists) return <span>{children}</span>
+      
+      return (
+        <button
+          onClick={() => openFile(filePath)}
+          className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-200 underline cursor-pointer"
+        >
+          {children}
+        </button>
+      )
+    }
+    
+    return (
+      <div className="p-6 max-w-2xl">
+        <h1 className="text-2xl font-bold mb-6">Archive Summary</h1>
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded">
+              <h3 className="font-semibold mb-2">Account Info</h3>
+              <div className="space-y-1 text-sm">
+                <div>Handle: <ClickableCount filePath="data/account.js">@{accountInfo?.username || 'sample'}</ClickableCount></div>
+                <div>Name: {accountInfo?.accountDisplayName || 'sample'}</div>
+                <div>Created: {accountInfo?.createdAt ? formatDate(accountInfo.createdAt) : 'sample'}</div>
+              </div>
             </div>
-          </div>
-          <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded">
-            <h3 className="font-semibold mb-2">Content</h3>
-            <div className="space-y-1 text-sm">
-              <div>Tweets: 2,847</div>
-              <div>Direct Messages: 156</div>
+            <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded">
+              <h3 className="font-semibold mb-2">Content</h3>
+              <div className="space-y-1 text-sm">
+                <div>Tweets: <ClickableCount filePath="data/tweets.js">{formatCount(twitterCounts['data/tweets.js'])}</ClickableCount></div>
+                <div>Direct Messages: <ClickableCount filePath="data/direct-messages.js">{formatCount(twitterCounts['data/direct-messages.js'])}</ClickableCount></div>
+                <div>Likes: <ClickableCount filePath="data/like.js">{formatCount(twitterCounts['data/like.js'])}</ClickableCount></div>
+              </div>
             </div>
-          </div>
-          <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded">
-            <h3 className="font-semibold mb-2">Privacy & Security</h3>
-            <div className="space-y-1 text-sm">
-              <div>Blocked Users: 23</div>
-              <div>Muted Users: 87</div>
+            <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded">
+              <h3 className="font-semibold mb-2">Privacy & Security</h3>
+              <div className="space-y-1 text-sm">
+                <div>Blocked Users: <ClickableCount filePath="data/block.js">{formatCount(twitterCounts['data/block.js'])}</ClickableCount></div>
+                <div>Muted Users: <ClickableCount filePath="data/mute.js">{formatCount(twitterCounts['data/mute.js'])}</ClickableCount></div>
+              </div>
             </div>
-          </div>
-          <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded">
-            <h3 className="font-semibold mb-2">Connected Apps</h3>
-            <div className="space-y-1 text-sm">
-              <div>Authorized Apps: 12</div>
+            <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded">
+              <h3 className="font-semibold mb-2">Social</h3>
+              <div className="space-y-1 text-sm">
+                <div>Following: <ClickableCount filePath="data/following.js">{formatCount(twitterCounts['data/following.js'])}</ClickableCount></div>
+                <div>Followers: <ClickableCount filePath="data/follower.js">{formatCount(twitterCounts['data/follower.js'])}</ClickableCount></div>
+              </div>
             </div>
           </div>
         </div>
       </div>
-    </div>
-  )
+    )
+  }
 
   return (
     <>
@@ -535,9 +636,9 @@ function App() {
                     style={{ paddingLeft: "8px" }}
                   >
                     <span className="truncate">📄&nbsp;{displayName}</span>
-                    {fileExists && fileEntry && (
+                    {fileExists && (
                       <span className="text-gray-500 dark:text-gray-400 text-xs ml-2 whitespace-nowrap">
-                        {formatFileSize(fileEntry.size)}
+                        {twitterCounts[filePath] !== undefined ? twitterCounts[filePath].toLocaleString() : '...'}
                       </span>
                     )}
                   </button>
