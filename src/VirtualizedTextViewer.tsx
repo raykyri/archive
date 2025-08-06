@@ -97,30 +97,32 @@ export function VirtualizedTextViewer({ content }: VirtualizedTextViewerProps) {
           width: "calc(100% - 2rem)", // Account for padding
         }}
       />
-      <div
-        style={{
-          height: `${virtualizer.getTotalSize()}px`,
-          width: "100%",
-          position: "relative",
-        }}
-      >
-        {virtualizer.getVirtualItems().map((virtualItem) => (
-          <div
-            key={virtualItem.key}
-            style={{
-              position: "absolute",
-              top: 0,
-              left: 0,
-              width: "100%",
-              transform: `translateY(${virtualItem.start}px)`,
-            }}
-          >
-            <pre className="whitespace-pre font-mono text-sm leading-5 m-0">
-              {blocks[virtualItem.index]}
-            </pre>
-          </div>
-        ))}
-      </div>
+      {measureElementReady && (
+        <div
+          style={{
+            height: `${virtualizer.getTotalSize()}px`,
+            width: "100%",
+            position: "relative",
+          }}
+        >
+          {virtualizer.getVirtualItems().map((virtualItem) => (
+            <div
+              key={virtualItem.key}
+              style={{
+                position: "absolute",
+                top: 0,
+                left: 0,
+                width: "100%",
+                transform: `translateY(${virtualItem.start}px)`,
+              }}
+            >
+              <pre className="whitespace-pre font-mono text-sm leading-5 m-0">
+                {blocks[virtualItem.index]}
+              </pre>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
