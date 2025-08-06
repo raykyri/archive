@@ -534,7 +534,7 @@ function App() {
       try {
         return new Date(dateString).toLocaleDateString()
       } catch {
-        return 'sample'
+        return '--'
       }
     }
 
@@ -545,7 +545,7 @@ function App() {
       return (
         <button
           onClick={() => openFile(filePath)}
-          className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-200 underline cursor-pointer"
+          className="underline cursor-pointer"
         >
           {children}
         </button>
@@ -560,9 +560,9 @@ function App() {
             <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded">
               <h3 className="font-semibold mb-2">Account Info</h3>
               <div className="space-y-1 text-sm">
-                <div>Handle: <ClickableCount filePath="data/account.js">@{accountInfo?.username || 'sample'}</ClickableCount></div>
-                <div>Name: {accountInfo?.accountDisplayName || 'sample'}</div>
-                <div>Created: {accountInfo?.createdAt ? formatDate(accountInfo.createdAt) : 'sample'}</div>
+                <div>Handle: <ClickableCount filePath="data/account.js">@{accountInfo?.username || '--'}</ClickableCount></div>
+                <div>Name: {accountInfo?.accountDisplayName || '--'}</div>
+                <div>Created: {accountInfo?.createdAt ? formatDate(accountInfo.createdAt) : '--'}</div>
               </div>
             </div>
             <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded">
