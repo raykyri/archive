@@ -1,52 +1,52 @@
-import React, { useRef } from 'react';
-import { useVirtualizer } from '@tanstack/react-virtual';
-import { splitTextIntoBlocks } from './helpers';
+import React, { useRef } from "react"
+import { useVirtualizer } from "@tanstack/react-virtual"
+import { splitTextIntoBlocks } from "./helpers"
 
 interface VirtualizedTextViewerProps {
-  content: string;
+  content: string
 }
 
 export function VirtualizedTextViewer({ content }: VirtualizedTextViewerProps) {
-  const parentRef = useRef<HTMLDivElement>(null);
-  
-  if (!content) {
-    return (
-      <div className="p-4 flex-1 overflow-auto whitespace-pre-wrap">
-        {content}
-      </div>
-    );
-  }
+  const parentRef = useRef<HTMLDivElement>(null)
 
-  const blocks = splitTextIntoBlocks(content, 100);
+  const blocks = splitTextIntoBlocks(content, 100)
 
   const virtualizer = useVirtualizer({
     count: blocks.length,
     getScrollElement: () => parentRef.current,
     estimateSize: () => 2000, // Estimate ~100 lines * 20px per line
     overscan: 2,
-  });
+  })
+
+  if (!content) {
+    return (
+      <div className="p-4 flex-1 overflow-auto whitespace-pre-wrap">
+        {content}
+      </div>
+    )
+  }
 
   return (
     <div
       ref={parentRef}
       className="p-4 flex-1 overflow-auto"
-      style={{ height: '100%' }}
+      style={{ height: "100%" }}
     >
       <div
         style={{
           height: `${virtualizer.getTotalSize()}px`,
-          width: '100%',
-          position: 'relative',
+          width: "100%",
+          position: "relative",
         }}
       >
         {virtualizer.getVirtualItems().map((virtualItem) => (
           <div
             key={virtualItem.key}
             style={{
-              position: 'absolute',
+              position: "absolute",
               top: 0,
               left: 0,
-              width: '100%',
+              width: "100%",
               transform: `translateY(${virtualItem.start}px)`,
             }}
           >
@@ -57,5 +57,5 @@ export function VirtualizedTextViewer({ content }: VirtualizedTextViewerProps) {
         ))}
       </div>
     </div>
-  );
+  )
 }
