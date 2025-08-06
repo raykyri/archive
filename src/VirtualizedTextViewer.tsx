@@ -77,7 +77,9 @@ export function VirtualizedTextViewer({ content }: VirtualizedTextViewerProps) {
 
   if (!content) {
     return (
-      <div className="p-4 flex-1 overflow-auto whitespace-pre">{content}</div>
+      <div className="p-4 flex-1 overflow-auto whitespace-pre-wrap">
+        {content}
+      </div>
     )
   }
 
@@ -90,7 +92,7 @@ export function VirtualizedTextViewer({ content }: VirtualizedTextViewerProps) {
       {/* Hidden element for measuring text height */}
       <pre
         ref={measureElementCallbackRef}
-        className="whitespace-pre font-mono text-sm leading-5 m-0 absolute invisible"
+        className="whitespace-pre-wrap font-mono text-sm leading-5 m-0 absolute invisible"
         style={{
           top: -9999,
           left: -9999,
@@ -116,7 +118,7 @@ export function VirtualizedTextViewer({ content }: VirtualizedTextViewerProps) {
                 transform: `translateY(${virtualItem.start}px)`,
               }}
             >
-              <pre className="whitespace-pre font-mono text-sm leading-5 m-0">
+              <pre className="whitespace-pre-wrap font-mono text-sm leading-5 m-0">
                 {blocks[virtualItem.index]}
               </pre>
             </div>
