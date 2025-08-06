@@ -16,6 +16,7 @@
     "vite": "^7.0.4"
   },
   "dependencies": {
-    "jszip": "^3.10.1"
+    "jszip": "^3.10.1",
+    "unzipit": "^1.4.3"
   }
 }

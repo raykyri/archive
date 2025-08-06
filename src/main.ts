@@ -1,5 +1,5 @@
 import './style.css';
-import JSZip from 'jszip';
+import { unzip } from 'unzipit';
 
 // Set initial theme based on system preference
 if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
@@ -30,21 +30,22 @@ themeToggle.addEventListener('click', () => {
 fileInput.addEventListener('change', async () => {
   const file = fileInput.files?.[0];
   if (!file) return;
-  const data = await file.arrayBuffer();
-  const zip = await JSZip.loadAsync(data);
+  console.log(`Uploaded file size: ${(file.size / 1024).toFixed(2)} KB`);
+  const { entries } = await unzip(file);
 
   sidebar.innerHTML = '';
-  for (const [path, entry] of Object.entries(zip.files)) {
-    if (entry.dir) continue;
+  for (const [path, entry] of Object.entries(entries)) {
+    if (entry.isDirectory) continue;
     const btn = document.createElement('button');
     btn.textContent = path;
     btn.className = 'block w-full text-left px-2 py-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded';
     btn.addEventListener('click', async () => {
-      const uint8 = await entry.async('uint8array');
-      if (isBinary(uint8)) {
+      const uint8 = await entry.arrayBuffer();
+      const data = new Uint8Array(uint8);
+      if (isBinary(data)) {
         content.textContent = `Binary file: ${path}`;
       } else {
-        content.textContent = new TextDecoder().decode(uint8);
+        content.textContent = new TextDecoder().decode(data);
       }
     });
     sidebar.appendChild(btn);
