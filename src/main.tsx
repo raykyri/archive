@@ -78,7 +78,11 @@ function buildDirectoryTree(files: FileEntry[]): TreeNode[] {
   return root
 }
 
-function getVisibleFiles(nodes: TreeNode[], expandedDirs: Set<string>, result: FileEntry[] = []): FileEntry[] {
+function getVisibleFiles(
+  nodes: TreeNode[],
+  expandedDirs: Set<string>,
+  result: FileEntry[] = [],
+): FileEntry[] {
   for (const node of nodes) {
     if (!node.isDirectory && node.fileEntry) {
       result.push(node.fileEntry)
@@ -93,7 +97,17 @@ interface DirectoryNodeProps extends DirectoryNodeWrapperProps {
   fileIndex?: number
 }
 
-function DirectoryNode({ node, onFileClick, level, selectedFilePath, expandedDirs, setExpandedDirs, focusedFileIndex, fileIndex, visibleFiles }: DirectoryNodeProps) {
+function DirectoryNode({
+  node,
+  onFileClick,
+  level,
+  selectedFilePath,
+  expandedDirs,
+  setExpandedDirs,
+  focusedFileIndex,
+  fileIndex,
+  visibleFiles,
+}: DirectoryNodeProps) {
   const isExpanded = expandedDirs.has(node.path)
   const indent = level * 12
 
@@ -106,10 +120,10 @@ function DirectoryNode({ node, onFileClick, level, selectedFilePath, expandedDir
         onClick={() => node.fileEntry && onFileClick(node.fileEntry)}
         className={`block w-full text-left px-2 py-1 rounded text-sm flex justify-between items-center ${
           isSelected
-            ? 'bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200'
+            ? "bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200"
             : isFocused
-            ? 'bg-gray-100 dark:bg-gray-800'
-            : 'hover:bg-gray-200 dark:hover:bg-gray-700'
+              ? "bg-gray-100 dark:bg-gray-800"
+              : "hover:bg-gray-200 dark:hover:bg-gray-700"
         }`}
         style={{ paddingLeft: `${indent + 8}px` }}
         tabIndex={isFocused ? 0 : -1}
@@ -128,7 +142,7 @@ function DirectoryNode({ node, onFileClick, level, selectedFilePath, expandedDir
   }
 
   const toggleExpand = () => {
-    setExpandedDirs(prev => {
+    setExpandedDirs((prev) => {
       const newSet = new Set(prev)
       if (isExpanded) {
         newSet.delete(node.path)
@@ -182,26 +196,26 @@ interface DirectoryNodeWrapperProps {
 
 function DirectoryNodeWrapper(props: DirectoryNodeWrapperProps) {
   const { node, visibleFiles } = props
-  const fileIndex = node.fileEntry ? visibleFiles.findIndex(f => f.path === node.path) : undefined
-  
-  return (
-    <DirectoryNode
-      {...props}
-      fileIndex={fileIndex}
-    />
-  )
+  const fileIndex = node.fileEntry
+    ? visibleFiles.findIndex((f) => f.path === node.path)
+    : undefined
+
+  return <DirectoryNode {...props} fileIndex={fileIndex} />
 }
 
 function App() {
   const [files, setFiles] = useState<FileEntry[]>([])
   const [directoryTree, setDirectoryTree] = useState<TreeNode[]>([])
   const [content, setContent] = useState<string>("")
-  const [currentView, setCurrentView] = useState<'about' | 'file'>('about')
+  const [currentView, setCurrentView] = useState<"about" | "file">("about")
   const [selectedFilePath, setSelectedFilePath] = useState<string>("")
   const [isLoading, setIsLoading] = useState(false)
   const hasInitialized = useRef(false)
   const [focusedFileIndex, setFocusedFileIndex] = useState<number>(-1)
-  const [expandedDirs, setExpandedDirs] = useState<Set<string>>(new Set(["data"]))
+  const [expandedDirs, setExpandedDirs] = useState<Set<string>>(
+    new Set(["data"]),
+  )
+  const directoryListRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (hasInitialized.current) return
@@ -229,7 +243,7 @@ function App() {
 
           setFiles(fileList)
           setDirectoryTree(buildDirectoryTree(fileList))
-          setCurrentView('about')
+          setCurrentView("about")
 
           const restoreDuration = performance.now() - restoreStartTime
           console.log(
@@ -251,7 +265,7 @@ function App() {
     setDirectoryTree([])
     setContent("")
     setSelectedFilePath("")
-    setCurrentView('about')
+    setCurrentView("about")
     localStorage.removeItem("lastArchiveKey")
 
     const fileInput = document.querySelector(
@@ -337,7 +351,7 @@ function App() {
         setFiles(fileList)
         setDirectoryTree(tree)
         setContent("")
-        setCurrentView('about')
+        setCurrentView("about")
       } catch (error) {
         console.error("Error loading archive:", error)
       } finally {
@@ -349,65 +363,94 @@ function App() {
 
   const visibleFiles = getVisibleFiles(directoryTree, expandedDirs)
 
-  const handleFileClick = useCallback(async (fileEntry: FileEntry) => {
-    const uint8 = await fileEntry.entry.arrayBuffer()
-    const data = new Uint8Array(uint8)
-    if (isBinary(data)) {
-      setContent(`Binary file: ${fileEntry.path}`)
-    } else {
-      setContent(new TextDecoder().decode(data))
-    }
-    setSelectedFilePath(fileEntry.path)
-    setCurrentView('file')
-    
-    // Set focused index to the clicked file
-    const fileIndex = visibleFiles.findIndex(f => f.path === fileEntry.path)
-    if (fileIndex >= 0) {
-      setFocusedFileIndex(fileIndex)
-    }
-  }, [visibleFiles])
+  const handleFileClick = useCallback(
+    async (fileEntry: FileEntry) => {
+      const uint8 = await fileEntry.entry.arrayBuffer()
+      const data = new Uint8Array(uint8)
+      if (isBinary(data)) {
+        setContent(`Binary file: ${fileEntry.path}`)
+      } else {
+        setContent(new TextDecoder().decode(data))
+      }
+      setSelectedFilePath(fileEntry.path)
+      setCurrentView("file")
+
+      // Set focused index to the clicked file
+      const fileIndex = visibleFiles.findIndex((f) => f.path === fileEntry.path)
+      if (fileIndex >= 0) {
+        setFocusedFileIndex(fileIndex)
+      }
+    },
+    [visibleFiles],
+  )
 
   const showAbout = useCallback(() => {
     setSelectedFilePath("")
-    setCurrentView('about')
+    setCurrentView("about")
   }, [])
 
-  const handleKeyDown = useCallback((event: KeyboardEvent) => {
-    if (visibleFiles.length === 0) return
-    
-    if (event.key === 'ArrowDown') {
-      event.preventDefault()
-      setFocusedFileIndex(prev => {
-        if (prev === -1) return 0
-        const nextIndex = prev + 1
-        return nextIndex < visibleFiles.length ? nextIndex : prev
-      })
-    } else if (event.key === 'ArrowUp') {
-      event.preventDefault()
-      setFocusedFileIndex(prev => {
-        if (prev === -1) return 0
-        const nextIndex = prev - 1
-        return nextIndex >= 0 ? nextIndex : prev
-      })
-    } else if (event.key === 'Enter' && focusedFileIndex >= 0) {
-      event.preventDefault()
-      const fileEntry = visibleFiles[focusedFileIndex]
-      if (fileEntry) {
-        handleFileClick(fileEntry)
+  const handleKeyDown = useCallback(
+    (event: KeyboardEvent) => {
+      if (visibleFiles.length === 0) return
+
+      if (event.key === "ArrowDown") {
+        event.preventDefault()
+        setFocusedFileIndex((prev) => {
+          if (prev === -1) return 0
+          const nextIndex = prev + 1
+          return nextIndex < visibleFiles.length ? nextIndex : prev
+        })
+      } else if (event.key === "ArrowUp") {
+        event.preventDefault()
+        setFocusedFileIndex((prev) => {
+          if (prev === -1) return 0
+          const nextIndex = prev - 1
+          return nextIndex >= 0 ? nextIndex : prev
+        })
+      } else if (event.key === "Enter" && focusedFileIndex >= 0) {
+        event.preventDefault()
+        const fileEntry = visibleFiles[focusedFileIndex]
+        if (fileEntry) {
+          handleFileClick(fileEntry)
+        }
       }
-    }
-  }, [visibleFiles, focusedFileIndex, handleFileClick])
+    },
+    [visibleFiles, focusedFileIndex, handleFileClick],
+  )
 
   useEffect(() => {
     if (focusedFileIndex >= visibleFiles.length) {
-      setFocusedFileIndex(visibleFiles.length > 0 ? visibleFiles.length - 1 : -1)
+      setFocusedFileIndex(
+        visibleFiles.length > 0 ? visibleFiles.length - 1 : -1,
+      )
     }
   }, [visibleFiles.length, focusedFileIndex])
 
+  // Preserve scroll position when directories expand/collapse
+  const scrollPositionRef = useRef<number>(0)
+
   useEffect(() => {
-    document.addEventListener('keydown', handleKeyDown)
+    const handleBeforeChange = () => {
+      if (directoryListRef.current) {
+        scrollPositionRef.current = directoryListRef.current.scrollTop
+      }
+    }
+
+    handleBeforeChange()
+  }, [expandedDirs])
+
+  useEffect(() => {
+    requestAnimationFrame(() => {
+      if (directoryListRef.current) {
+        directoryListRef.current.scrollTop = scrollPositionRef.current
+      }
+    })
+  }, [expandedDirs])
+
+  useEffect(() => {
+    document.addEventListener("keydown", handleKeyDown)
     return () => {
-      document.removeEventListener('keydown', handleKeyDown)
+      document.removeEventListener("keydown", handleKeyDown)
     }
   }, [handleKeyDown])
 
@@ -451,34 +494,73 @@ function App() {
 
   return (
     <>
-      <div className="w-64 min-w-64 border-r border-gray-200 dark:border-gray-700 p-2 overflow-y-auto flex-shrink-0">
+      <div className="w-64 min-w-64 border-r border-gray-200 dark:border-gray-700 flex flex-col flex-shrink-0">
         {files.length > 0 && (
-          <div className="mb-4">
+          <div className="p-2 border-b border-gray-200 dark:border-gray-700">
             <button
               onClick={showAbout}
               className={`block w-full text-left px-2 py-1 rounded text-sm font-medium ${
-                currentView === 'about'
-                  ? 'bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200'
-                  : 'hover:bg-gray-200 dark:hover:bg-gray-700'
+                currentView === "about"
+                  ? "bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200"
+                  : "hover:bg-gray-200 dark:hover:bg-gray-700"
               }`}
             >
               📊 About
             </button>
+            <div className="mt-2 mb-1">
+              {[
+                { path: "data/like.js", name: "Likes" },
+                { path: "data/tweets.js", name: "Tweets" },
+                { path: "data/mute.js", name: "Muted" },
+                { path: "data/block.js", name: "Blocked" },
+                { path: "data/direct-messages.js", name: "Direct Messages" },
+                { path: "data/follower.js", name: "Followers" },
+                { path: "data/following.js", name: "Following" },
+              ].map(({ path: filePath, name: displayName }) => {
+                const fileExists = files.some((f) => f.path === filePath)
+                const fileEntry = files.find((f) => f.path === filePath)
+                const isSelected = selectedFilePath === filePath
+                return (
+                  <button
+                    key={filePath}
+                    onClick={() => fileEntry && handleFileClick(fileEntry)}
+                    disabled={!fileExists}
+                    className={`block w-full text-left px-2 py-1 rounded text-sm flex justify-between items-center ${
+                      isSelected
+                        ? "bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200"
+                        : fileExists
+                          ? "hover:bg-gray-200 dark:hover:bg-gray-700"
+                          : "text-gray-400 dark:text-gray-600 cursor-not-allowed"
+                    }`}
+                    style={{ paddingLeft: "8px" }}
+                  >
+                    <span className="truncate">📄&nbsp;{displayName}</span>
+                    {fileExists && fileEntry && (
+                      <span className="text-gray-500 dark:text-gray-400 text-xs ml-2 whitespace-nowrap">
+                        {formatFileSize(fileEntry.size)}
+                      </span>
+                    )}
+                  </button>
+                )
+              })}
+            </div>
           </div>
         )}
-        {directoryTree.map((node) => (
-          <DirectoryNodeWrapper
-            key={node.path}
-            node={node}
-            onFileClick={handleFileClick}
-            level={0}
-            selectedFilePath={selectedFilePath}
-            expandedDirs={expandedDirs}
-            setExpandedDirs={setExpandedDirs}
-            focusedFileIndex={focusedFileIndex}
-            visibleFiles={visibleFiles}
-          />
-        ))}
+        <div ref={directoryListRef} className="flex-1 overflow-y-auto p-2">
+          {directoryTree.map((node) => (
+            <DirectoryNodeWrapper
+              key={node.path}
+              node={node}
+              onFileClick={handleFileClick}
+              level={0}
+              selectedFilePath={selectedFilePath}
+              expandedDirs={expandedDirs}
+              setExpandedDirs={setExpandedDirs}
+              focusedFileIndex={focusedFileIndex}
+              visibleFiles={visibleFiles}
+            />
+          ))}
+        </div>
       </div>
       <div className="flex-1 flex flex-col min-w-0">
         <div className="p-2 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
@@ -511,7 +593,11 @@ function App() {
             </button>
           </div>
         </div>
-        {currentView === 'about' ? <AboutPage /> : <VirtualizedTextViewer content={content} />}
+        {currentView === "about" ? (
+          <AboutPage />
+        ) : (
+          <VirtualizedTextViewer content={content} />
+        )}
       </div>
     </>
   )
