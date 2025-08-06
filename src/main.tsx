@@ -176,6 +176,13 @@ function App() {
     document.documentElement.classList.toggle("dark")
   }, [])
 
+  const clearArchive = useCallback(() => {
+    setFiles([])
+    setDirectoryTree([])
+    setContent("")
+    localStorage.removeItem('lastArchiveKey')
+  }, [])
+
   const handleFileUpload = useCallback(
     async (event: React.ChangeEvent<HTMLInputElement>) => {
       const file = event.target.files?.[0]
@@ -203,11 +210,15 @@ function App() {
           }))
         } else {
           console.log('Unzipping and caching...')
+          const unzipStartTime = performance.now()
           const { entries } = await unzip(file)
+          const unzipDuration = performance.now() - unzipStartTime
+          console.log(`Zip unpacking took ${unzipDuration.toFixed(2)}ms`)
           
           const filesToCache: Array<{ path: string, content: Uint8Array, size: number }> = []
           fileList = []
           
+          const processStartTime = performance.now()
           for (const [path, entry] of Object.entries(entries)) {
             if (!entry.isDirectory) {
               const content = new Uint8Array(await entry.arrayBuffer())
@@ -215,6 +226,8 @@ function App() {
               fileList.push({ path, entry, size: entry.size })
             }
           }
+          const processDuration = performance.now() - processStartTime
+          console.log(`File processing took ${processDuration.toFixed(2)}ms for ${fileList.length} files`)
           
           const saveStartTime = performance.now()
           await archiveCache.save(cacheKey, filesToCache)
@@ -225,8 +238,13 @@ function App() {
         // Save the current archive key for restoration
         localStorage.setItem('lastArchiveKey', cacheKey)
         
+        const treeStartTime = performance.now()
+        const tree = buildDirectoryTree(fileList)
+        const treeDuration = performance.now() - treeStartTime
+        console.log(`Directory tree building took ${treeDuration.toFixed(2)}ms`)
+        
         setFiles(fileList)
-        setDirectoryTree(buildDirectoryTree(fileList))
+        setDirectoryTree(tree)
         setContent("")
       } catch (error) {
         console.error('Error loading archive:', error)
@@ -271,9 +289,19 @@ function App() {
             />
             {isLoading && <span className="text-sm text-gray-500">Loading...</span>}
           </div>
-          <button onClick={toggleTheme} className="px-2 py-1 border rounded">
-            Toggle
-          </button>
+          <div className="flex items-center gap-2">
+            {files.length > 0 && (
+              <button 
+                onClick={clearArchive}
+                className="px-2 py-1 border rounded text-sm"
+              >
+                Clear
+              </button>
+            )}
+            <button onClick={toggleTheme} className="px-2 py-1 border rounded">
+              Toggle
+            </button>
+          </div>
         </div>
         <VirtualizedTextViewer content={content} />
       </div>
