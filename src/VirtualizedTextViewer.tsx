@@ -9,12 +9,14 @@ interface VirtualizedTextViewerProps {
 export function VirtualizedTextViewer({ content }: VirtualizedTextViewerProps) {
   const parentRef = useRef<HTMLDivElement>(null)
 
-  const blocks = splitTextIntoBlocks(content, 100)
+  const lines = content.split('\n')
+  const linesPerBlock = lines.length <= 50 ? 1 : 100
+  const blocks = splitTextIntoBlocks(content, linesPerBlock)
 
   const virtualizer = useVirtualizer({
     count: blocks.length,
     getScrollElement: () => parentRef.current,
-    estimateSize: () => 2000, // Estimate ~100 lines * 20px per line
+    estimateSize: () => linesPerBlock * 20, // Estimate lines per block * 20px per line
     overscan: 2,
   })
 
