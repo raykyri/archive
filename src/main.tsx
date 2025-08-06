@@ -226,10 +226,17 @@ function App() {
     createdAt: string
     accountDisplayName: string
   } | null>(null)
+  const [pendingHashRestore, setPendingHashRestore] = useState<string | null>(null)
 
   useEffect(() => {
     if (hasInitialized.current) return
     hasInitialized.current = true
+
+    // Capture initial hash before any navigation
+    const initialHash = window.location.hash.slice(1)
+    if (initialHash) {
+      setPendingHashRestore(decodeURIComponent(initialHash))
+    }
 
     const initializeApp = async () => {
       await archiveCache.init()
@@ -276,6 +283,7 @@ function App() {
     setContent("")
     setSelectedFilePath("")
     setCurrentView("about")
+    setPendingHashRestore(null)
     localStorage.removeItem("lastArchiveKey")
 
     const fileInput = document.querySelector(
@@ -295,6 +303,7 @@ function App() {
       setFiles([])
       setDirectoryTree([])
       setContent("")
+      setPendingHashRestore(null)
       localStorage.removeItem("lastArchiveKey")
 
       setIsLoading(true)
@@ -462,14 +471,27 @@ function App() {
     }
   }, [files, parseTwitterArchiveData])
 
+  // Attempt to restore pending hash when files are loaded
+  useEffect(() => {
+    if (files.length > 0 && pendingHashRestore) {
+      const fileEntry = files.find(f => f.path === pendingHashRestore)
+      if (fileEntry) {
+        handleFileClick(fileEntry)
+      }
+      // Clear pending restore whether successful or not
+      setPendingHashRestore(null)
+    }
+  }, [files, pendingHashRestore, handleFileClick])
+
   // Update URL hash when view changes
   useEffect(() => {
-    if (currentView === 'about') {
+    // Don't clear hash if we're waiting to restore a pending file
+    if (currentView === 'about' && !pendingHashRestore) {
       window.location.hash = ''
     } else if (selectedFilePath) {
       window.location.hash = encodeURIComponent(selectedFilePath)
     }
-  }, [currentView, selectedFilePath])
+  }, [currentView, selectedFilePath, pendingHashRestore])
 
   // Handle hash changes (back/forward navigation)
   useEffect(() => {
