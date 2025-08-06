@@ -2,9 +2,10 @@ import "./style.css"
 import { StrictMode } from "react"
 import { createRoot } from "react-dom/client"
 import { unzip } from "unzipit"
-import React, { useState, useCallback } from "react"
+import React, { useState, useCallback, useEffect, useRef } from "react"
 import { formatFileSize, isBinary } from "./helpers"
 import { VirtualizedTextViewer } from "./VirtualizedTextViewer"
+import { archiveCache } from "./indexedDbCache"
 
 // Set initial theme based on system preference
 if (window.matchMedia("(prefers-color-scheme: dark)").matches) {
@@ -132,6 +133,44 @@ function App() {
   const [files, setFiles] = useState<FileEntry[]>([])
   const [directoryTree, setDirectoryTree] = useState<TreeNode[]>([])
   const [content, setContent] = useState<string>("")
+  const [isLoading, setIsLoading] = useState(false)
+  const hasInitialized = useRef(false)
+
+  useEffect(() => {
+    if (hasInitialized.current) return
+    hasInitialized.current = true
+    
+    const initializeApp = async () => {
+      await archiveCache.init()
+      
+      // Try to restore from cache on startup
+      const lastArchiveKey = localStorage.getItem('lastArchiveKey')
+      if (lastArchiveKey) {
+        const restoreStartTime = performance.now()
+        console.log('Restoring from cache...')
+        const cachedFiles = await archiveCache.get(lastArchiveKey)
+        if (cachedFiles) {
+          const fileList: FileEntry[] = cachedFiles.map(cached => ({
+            path: cached.path,
+            entry: {
+              arrayBuffer: () => Promise.resolve(cached.content.buffer),
+              size: cached.size,
+              isDirectory: false
+            },
+            size: cached.size
+          }))
+          
+          setFiles(fileList)
+          setDirectoryTree(buildDirectoryTree(fileList))
+          
+          const restoreDuration = performance.now() - restoreStartTime
+          console.log(`Total cache restoration took ${restoreDuration.toFixed(2)}ms`)
+        }
+      }
+    }
+    
+    initializeApp().catch(console.error)
+  }, [])
 
   const toggleTheme = useCallback(() => {
     document.documentElement.classList.toggle("dark")
@@ -141,18 +180,59 @@ function App() {
     async (event: React.ChangeEvent<HTMLInputElement>) => {
       const file = event.target.files?.[0]
       if (!file) return
+      
+      setIsLoading(true)
       console.log(`Uploaded file size: ${(file.size / 1024).toFixed(2)} KB`)
-      const { entries } = await unzip(file)
-
-      const fileList: FileEntry[] = []
-      for (const [path, entry] of Object.entries(entries)) {
-        if (!entry.isDirectory) {
-          fileList.push({ path, entry, size: entry.size })
+      
+      try {
+        const cacheKey = await archiveCache.generateKey(file)
+        const cachedFiles = await archiveCache.get(cacheKey)
+        
+        let fileList: FileEntry[]
+        
+        if (cachedFiles) {
+          console.log('Loading from cache...')
+          fileList = cachedFiles.map(cached => ({
+            path: cached.path,
+            entry: {
+              arrayBuffer: () => Promise.resolve(cached.content.buffer),
+              size: cached.size,
+              isDirectory: false
+            },
+            size: cached.size
+          }))
+        } else {
+          console.log('Unzipping and caching...')
+          const { entries } = await unzip(file)
+          
+          const filesToCache: Array<{ path: string, content: Uint8Array, size: number }> = []
+          fileList = []
+          
+          for (const [path, entry] of Object.entries(entries)) {
+            if (!entry.isDirectory) {
+              const content = new Uint8Array(await entry.arrayBuffer())
+              filesToCache.push({ path, content, size: entry.size })
+              fileList.push({ path, entry, size: entry.size })
+            }
+          }
+          
+          const saveStartTime = performance.now()
+          await archiveCache.save(cacheKey, filesToCache)
+          const saveDuration = performance.now() - saveStartTime
+          console.log(`Total save operation took ${saveDuration.toFixed(2)}ms`)
         }
+        
+        // Save the current archive key for restoration
+        localStorage.setItem('lastArchiveKey', cacheKey)
+        
+        setFiles(fileList)
+        setDirectoryTree(buildDirectoryTree(fileList))
+        setContent("")
+      } catch (error) {
+        console.error('Error loading archive:', error)
+      } finally {
+        setIsLoading(false)
       }
-      setFiles(fileList)
-      setDirectoryTree(buildDirectoryTree(fileList))
-      setContent("")
     },
     [],
   )
@@ -181,12 +261,16 @@ function App() {
       </div>
       <div className="flex-1 flex flex-col min-w-0">
         <div className="p-2 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-          <input
-            type="file"
-            accept=".zip"
-            onChange={handleFileUpload}
-            className="text-sm"
-          />
+          <div className="flex items-center gap-2">
+            <input
+              type="file"
+              accept=".zip"
+              onChange={handleFileUpload}
+              className="text-sm"
+              disabled={isLoading}
+            />
+            {isLoading && <span className="text-sm text-gray-500">Loading...</span>}
+          </div>
           <button onClick={toggleTheme} className="px-2 py-1 border rounded">
             Toggle
           </button>

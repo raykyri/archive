@@ -1,4 +1,4 @@
-import React, { useRef } from "react"
+import React, { useRef, useEffect } from "react"
 import { useVirtualizer } from "@tanstack/react-virtual"
 import { splitTextIntoBlocks } from "./helpers"
 
@@ -17,6 +17,13 @@ export function VirtualizedTextViewer({ content }: VirtualizedTextViewerProps) {
     estimateSize: () => 2000, // Estimate ~100 lines * 20px per line
     overscan: 2,
   })
+
+  // Scroll to top when content changes
+  useEffect(() => {
+    if (content && parentRef.current) {
+      parentRef.current.scrollTop = 0
+    }
+  }, [content])
 
   if (!content) {
     return (
