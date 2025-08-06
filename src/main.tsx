@@ -133,6 +133,7 @@ function App() {
   const [files, setFiles] = useState<FileEntry[]>([])
   const [directoryTree, setDirectoryTree] = useState<TreeNode[]>([])
   const [content, setContent] = useState<string>("")
+  const [currentView, setCurrentView] = useState<'about' | 'file'>('about')
   const [isLoading, setIsLoading] = useState(false)
   const hasInitialized = useRef(false)
 
@@ -162,6 +163,7 @@ function App() {
 
           setFiles(fileList)
           setDirectoryTree(buildDirectoryTree(fileList))
+          setCurrentView('about')
 
           const restoreDuration = performance.now() - restoreStartTime
           console.log(
@@ -182,6 +184,7 @@ function App() {
     setFiles([])
     setDirectoryTree([])
     setContent("")
+    setCurrentView('about')
     localStorage.removeItem("lastArchiveKey")
 
     const fileInput = document.querySelector(
@@ -267,6 +270,7 @@ function App() {
         setFiles(fileList)
         setDirectoryTree(tree)
         setContent("")
+        setCurrentView('about')
       } catch (error) {
         console.error("Error loading archive:", error)
       } finally {
@@ -284,11 +288,68 @@ function App() {
     } else {
       setContent(new TextDecoder().decode(data))
     }
+    setCurrentView('file')
   }, [])
+
+  const showAbout = useCallback(() => {
+    setCurrentView('about')
+  }, [])
+
+  const AboutPage = () => (
+    <div className="p-6 max-w-2xl">
+      <h1 className="text-2xl font-bold mb-6">Archive Summary</h1>
+      <div className="space-y-4">
+        <div className="grid grid-cols-2 gap-4">
+          <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded">
+            <h3 className="font-semibold mb-2">Account Info</h3>
+            <div className="space-y-1 text-sm">
+              <div>Handle: @placeholder_user</div>
+              <div>Archive Date: Jan 15, 2024</div>
+              <div>Archive Size: 125.3 MB</div>
+            </div>
+          </div>
+          <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded">
+            <h3 className="font-semibold mb-2">Content</h3>
+            <div className="space-y-1 text-sm">
+              <div>Tweets: 2,847</div>
+              <div>Direct Messages: 156</div>
+            </div>
+          </div>
+          <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded">
+            <h3 className="font-semibold mb-2">Privacy & Security</h3>
+            <div className="space-y-1 text-sm">
+              <div>Blocked Users: 23</div>
+              <div>Muted Users: 87</div>
+            </div>
+          </div>
+          <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded">
+            <h3 className="font-semibold mb-2">Connected Apps</h3>
+            <div className="space-y-1 text-sm">
+              <div>Authorized Apps: 12</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
 
   return (
     <>
       <div className="w-64 min-w-64 border-r border-gray-200 dark:border-gray-700 p-2 overflow-y-auto flex-shrink-0">
+        {files.length > 0 && (
+          <div className="mb-4">
+            <button
+              onClick={showAbout}
+              className={`block w-full text-left px-2 py-1 rounded text-sm font-medium ${
+                currentView === 'about'
+                  ? 'bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200'
+                  : 'hover:bg-gray-200 dark:hover:bg-gray-700'
+              }`}
+            >
+              📊 About
+            </button>
+          </div>
+        )}
         {directoryTree.map((node) => (
           <DirectoryNode
             key={node.path}
@@ -329,7 +390,7 @@ function App() {
             </button>
           </div>
         </div>
-        <VirtualizedTextViewer content={content} />
+        {currentView === 'about' ? <AboutPage /> : <VirtualizedTextViewer content={content} />}
       </div>
     </>
   )
