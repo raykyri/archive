@@ -5,8 +5,8 @@
  */
 export function parseTwitterArchiveFile(content: string): any[] | null {
   try {
-    const lines = content.split('\n')
-    
+    const lines = content.split("\n")
+
     // Find the first line that starts with window.YTD assignment
     let startIndex = -1
     for (let i = 0; i < lines.length; i++) {
@@ -15,32 +15,35 @@ export function parseTwitterArchiveFile(content: string): any[] | null {
         break
       }
     }
-    
+
     if (startIndex === -1) {
       return null
     }
-    
+
     // Remove the assignment part and keep just the JSON array
     const firstLine = lines[startIndex]
-    const jsonStart = firstLine.indexOf('[')
-    
+    const jsonStart = firstLine.indexOf("[")
+
     if (jsonStart === -1) {
       return null
     }
-    
+
     // Reconstruct the content starting from the opening bracket
-    const jsonContent = firstLine.substring(jsonStart) + '\n' + lines.slice(startIndex + 1).join('\n')
-    
+    const jsonContent =
+      firstLine.substring(jsonStart) +
+      "\n" +
+      lines.slice(startIndex + 1).join("\n")
+
     // Parse as JSON
     const data = JSON.parse(jsonContent)
-    
+
     if (!Array.isArray(data)) {
       return null
     }
-    
+
     return data
   } catch (error) {
-    console.error('Error parsing Twitter archive file:', error)
+    console.error("Error parsing Twitter archive file:", error)
     return null
   }
 }
@@ -71,7 +74,9 @@ export interface TwitterAccount {
  * @param content The raw file content
  * @returns Account data or null if parsing fails
  */
-export function parseTwitterAccount(content: string): TwitterAccount['account'] | null {
+export function parseTwitterAccount(
+  content: string,
+): TwitterAccount["account"] | null {
   const data = parseTwitterArchiveFile(content)
   if (data && data.length > 0 && data[0].account) {
     return data[0].account

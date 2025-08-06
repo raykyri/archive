@@ -9,9 +9,11 @@ interface VirtualizedTextViewerProps {
 export function VirtualizedTextViewer({ content }: VirtualizedTextViewerProps) {
   const parentRef = useRef<HTMLDivElement>(null)
   const measureElementRef = useRef<HTMLPreElement>(null)
-  const [measuredHeights, setMeasuredHeights] = useState<Map<number, number>>(new Map())
+  const [measuredHeights, setMeasuredHeights] = useState<Map<number, number>>(
+    new Map(),
+  )
 
-  const lines = content.split('\n')
+  const lines = content.split("\n")
   const linesPerBlock = lines.length <= 50 ? 1 : 100
   const blocks = splitTextIntoBlocks(content, linesPerBlock)
 
@@ -24,7 +26,7 @@ export function VirtualizedTextViewer({ content }: VirtualizedTextViewerProps) {
     if (!measureElementRef.current) {
       // Fallback to estimation if measure element isn't ready
       const lineHeight = 17.5
-      const actualLines = blocks[index].split('\n').length
+      const actualLines = blocks[index].split("\n").length
       return actualLines * lineHeight
     }
 
@@ -32,10 +34,13 @@ export function VirtualizedTextViewer({ content }: VirtualizedTextViewerProps) {
     measureElementRef.current.textContent = blocks[index]
     const height = measureElementRef.current.offsetHeight
 
+    // Add extra height for debugging
+    const debugHeight = height + 0
+
     // Cache the measurement
-    setMeasuredHeights(prev => new Map(prev).set(index, height))
-    
-    return height
+    setMeasuredHeights((prev) => new Map(prev).set(index, debugHeight))
+
+    return debugHeight
   }
 
   const virtualizer = useVirtualizer({
