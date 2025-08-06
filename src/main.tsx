@@ -139,36 +139,38 @@ function App() {
   useEffect(() => {
     if (hasInitialized.current) return
     hasInitialized.current = true
-    
+
     const initializeApp = async () => {
       await archiveCache.init()
-      
+
       // Try to restore from cache on startup
-      const lastArchiveKey = localStorage.getItem('lastArchiveKey')
+      const lastArchiveKey = localStorage.getItem("lastArchiveKey")
       if (lastArchiveKey) {
         const restoreStartTime = performance.now()
-        console.log('Restoring from cache...')
+        console.log("Restoring from cache...")
         const cachedFiles = await archiveCache.get(lastArchiveKey)
         if (cachedFiles) {
-          const fileList: FileEntry[] = cachedFiles.map(cached => ({
+          const fileList: FileEntry[] = cachedFiles.map((cached) => ({
             path: cached.path,
             entry: {
               arrayBuffer: () => Promise.resolve(cached.content.buffer),
               size: cached.size,
-              isDirectory: false
+              isDirectory: false,
             },
-            size: cached.size
+            size: cached.size,
           }))
-          
+
           setFiles(fileList)
           setDirectoryTree(buildDirectoryTree(fileList))
-          
+
           const restoreDuration = performance.now() - restoreStartTime
-          console.log(`Total cache restoration took ${restoreDuration.toFixed(2)}ms`)
+          console.log(
+            `Total cache restoration took ${restoreDuration.toFixed(2)}ms`,
+          )
         }
       }
     }
-    
+
     initializeApp().catch(console.error)
   }, [])
 
@@ -180,44 +182,61 @@ function App() {
     setFiles([])
     setDirectoryTree([])
     setContent("")
-    localStorage.removeItem('lastArchiveKey')
+    localStorage.removeItem("lastArchiveKey")
+
+    const fileInput = document.querySelector(
+      'input[type="file"]',
+    ) as HTMLInputElement
+    if (fileInput) {
+      fileInput.value = ""
+    }
   }, [])
 
   const handleFileUpload = useCallback(
     async (event: React.ChangeEvent<HTMLInputElement>) => {
       const file = event.target.files?.[0]
       if (!file) return
-      
+
+      // Clear previous archive state first
+      setFiles([])
+      setDirectoryTree([])
+      setContent("")
+      localStorage.removeItem("lastArchiveKey")
+
       setIsLoading(true)
       console.log(`Uploaded file size: ${(file.size / 1024).toFixed(2)} KB`)
-      
+
       try {
         const cacheKey = await archiveCache.generateKey(file)
         const cachedFiles = await archiveCache.get(cacheKey)
-        
+
         let fileList: FileEntry[]
-        
+
         if (cachedFiles) {
-          console.log('Loading from cache...')
-          fileList = cachedFiles.map(cached => ({
+          console.log("Loading from cache...")
+          fileList = cachedFiles.map((cached) => ({
             path: cached.path,
             entry: {
               arrayBuffer: () => Promise.resolve(cached.content.buffer),
               size: cached.size,
-              isDirectory: false
+              isDirectory: false,
             },
-            size: cached.size
+            size: cached.size,
           }))
         } else {
-          console.log('Unzipping and caching...')
+          console.log("Unzipping and caching...")
           const unzipStartTime = performance.now()
           const { entries } = await unzip(file)
           const unzipDuration = performance.now() - unzipStartTime
           console.log(`Zip unpacking took ${unzipDuration.toFixed(2)}ms`)
-          
-          const filesToCache: Array<{ path: string, content: Uint8Array, size: number }> = []
+
+          const filesToCache: Array<{
+            path: string
+            content: Uint8Array
+            size: number
+          }> = []
           fileList = []
-          
+
           const processStartTime = performance.now()
           for (const [path, entry] of Object.entries(entries)) {
             if (!entry.isDirectory) {
@@ -227,27 +246,29 @@ function App() {
             }
           }
           const processDuration = performance.now() - processStartTime
-          console.log(`File processing took ${processDuration.toFixed(2)}ms for ${fileList.length} files`)
-          
+          console.log(
+            `File processing took ${processDuration.toFixed(2)}ms for ${fileList.length} files`,
+          )
+
           const saveStartTime = performance.now()
           await archiveCache.save(cacheKey, filesToCache)
           const saveDuration = performance.now() - saveStartTime
           console.log(`Total save operation took ${saveDuration.toFixed(2)}ms`)
         }
-        
+
         // Save the current archive key for restoration
-        localStorage.setItem('lastArchiveKey', cacheKey)
-        
+        localStorage.setItem("lastArchiveKey", cacheKey)
+
         const treeStartTime = performance.now()
         const tree = buildDirectoryTree(fileList)
         const treeDuration = performance.now() - treeStartTime
         console.log(`Directory tree building took ${treeDuration.toFixed(2)}ms`)
-        
+
         setFiles(fileList)
         setDirectoryTree(tree)
         setContent("")
       } catch (error) {
-        console.error('Error loading archive:', error)
+        console.error("Error loading archive:", error)
       } finally {
         setIsLoading(false)
       }
@@ -287,18 +308,23 @@ function App() {
               className="text-sm"
               disabled={isLoading}
             />
-            {isLoading && <span className="text-sm text-gray-500">Loading...</span>}
+            {isLoading && (
+              <span className="text-sm text-gray-500">Loading...</span>
+            )}
           </div>
           <div className="flex items-center gap-2">
             {files.length > 0 && (
-              <button 
+              <button
                 onClick={clearArchive}
                 className="px-2 py-1 border rounded text-sm"
               >
                 Clear
               </button>
             )}
-            <button onClick={toggleTheme} className="px-2 py-1 border rounded">
+            <button
+              onClick={toggleTheme}
+              className="px-2 py-1 border rounded text-sm"
+            >
               Toggle
             </button>
           </div>
