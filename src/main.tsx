@@ -5,6 +5,8 @@ import { unzip } from "unzipit"
 import React, { useState, useCallback, useEffect, useRef } from "react"
 import { formatFileSize, isBinary } from "./helpers"
 import { VirtualizedTextViewer } from "./VirtualizedTextViewer"
+import { HeaderBar } from "./HeaderBar"
+import { FileUpload } from "./FileUpload"
 import { archiveCache } from "./indexedDbCache"
 import {
   getTwitterArchiveItemCount,
@@ -232,6 +234,9 @@ function App() {
   const [pendingHashRestore, setPendingHashRestore] = useState<string | null>(
     null,
   )
+  const [isDarkMode, setIsDarkMode] = useState(
+    document.documentElement.classList.contains("dark")
+  )
 
   useEffect(() => {
     if (hasInitialized.current) return
@@ -280,6 +285,7 @@ function App() {
 
   const toggleTheme = useCallback(() => {
     document.documentElement.classList.toggle("dark")
+    setIsDarkMode(document.documentElement.classList.contains("dark"))
   }, [])
 
   const clearArchive = useCallback(() => {
@@ -299,91 +305,86 @@ function App() {
     }
   }, [])
 
-  const handleFileUpload = useCallback(
-    async (event: React.ChangeEvent<HTMLInputElement>) => {
-      const file = event.target.files?.[0]
-      if (!file) return
+  const processFile = useCallback(async (file: File) => {
+    // Clear previous archive state first
+    setFiles([])
+    setDirectoryTree([])
+    setContent("")
+    setPendingHashRestore(null)
+    localStorage.removeItem("lastArchiveKey")
 
-      // Clear previous archive state first
-      setFiles([])
-      setDirectoryTree([])
-      setContent("")
-      setPendingHashRestore(null)
-      localStorage.removeItem("lastArchiveKey")
+    setIsLoading(true)
+    console.log(`File size: ${(file.size / 1024).toFixed(2)} KB`)
 
-      setIsLoading(true)
-      console.log(`Uploaded file size: ${(file.size / 1024).toFixed(2)} KB`)
+    try {
+      const cacheKey = await archiveCache.generateKey(file)
+      const cachedFiles = await archiveCache.get(cacheKey)
 
-      try {
-        const cacheKey = await archiveCache.generateKey(file)
-        const cachedFiles = await archiveCache.get(cacheKey)
+      let fileList: FileEntry[]
 
-        let fileList: FileEntry[]
-
-        if (cachedFiles) {
-          console.log("Loading from cache...")
-          fileList = cachedFiles.map((cached) => ({
-            path: cached.path,
-            entry: {
-              arrayBuffer: () => Promise.resolve(cached.content.buffer),
-              size: cached.size,
-              isDirectory: false,
-            },
+      if (cachedFiles) {
+        console.log("Loading from cache...")
+        fileList = cachedFiles.map((cached) => ({
+          path: cached.path,
+          entry: {
+            arrayBuffer: () => Promise.resolve(cached.content.buffer),
             size: cached.size,
-          }))
-        } else {
-          console.log("Unzipping and caching...")
-          const unzipStartTime = performance.now()
-          const { entries } = await unzip(file)
-          const unzipDuration = performance.now() - unzipStartTime
-          console.log(`Zip unpacking took ${unzipDuration.toFixed(2)}ms`)
+            isDirectory: false,
+          },
+          size: cached.size,
+        }))
+      } else {
+        console.log("Unzipping and caching...")
+        const unzipStartTime = performance.now()
+        const { entries } = await unzip(file)
+        const unzipDuration = performance.now() - unzipStartTime
+        console.log(`Zip unpacking took ${unzipDuration.toFixed(2)}ms`)
 
-          const filesToCache: Array<{
-            path: string
-            content: Uint8Array
-            size: number
-          }> = []
-          fileList = []
+        const filesToCache: Array<{
+          path: string
+          content: Uint8Array
+          size: number
+        }> = []
+        fileList = []
 
-          const processStartTime = performance.now()
-          for (const [path, entry] of Object.entries(entries)) {
-            if (!entry.isDirectory) {
-              const content = new Uint8Array(await entry.arrayBuffer())
-              filesToCache.push({ path, content, size: entry.size })
-              fileList.push({ path, entry, size: entry.size })
-            }
+        const processStartTime = performance.now()
+        for (const [path, entry] of Object.entries(entries)) {
+          if (!entry.isDirectory) {
+            const content = new Uint8Array(await entry.arrayBuffer())
+            filesToCache.push({ path, content, size: entry.size })
+            fileList.push({ path, entry, size: entry.size })
           }
-          const processDuration = performance.now() - processStartTime
-          console.log(
-            `File processing took ${processDuration.toFixed(2)}ms for ${fileList.length} files`,
-          )
-
-          const saveStartTime = performance.now()
-          await archiveCache.save(cacheKey, filesToCache)
-          const saveDuration = performance.now() - saveStartTime
-          console.log(`Total save operation took ${saveDuration.toFixed(2)}ms`)
         }
+        const processDuration = performance.now() - processStartTime
+        console.log(
+          `File processing took ${processDuration.toFixed(2)}ms for ${fileList.length} files`,
+        )
 
-        // Save the current archive key for restoration
-        localStorage.setItem("lastArchiveKey", cacheKey)
-
-        const treeStartTime = performance.now()
-        const tree = buildDirectoryTree(fileList)
-        const treeDuration = performance.now() - treeStartTime
-        console.log(`Directory tree building took ${treeDuration.toFixed(2)}ms`)
-
-        setFiles(fileList)
-        setDirectoryTree(tree)
-        setContent("")
-        setCurrentView("about")
-      } catch (error) {
-        console.error("Error loading archive:", error)
-      } finally {
-        setIsLoading(false)
+        const saveStartTime = performance.now()
+        await archiveCache.save(cacheKey, filesToCache)
+        const saveDuration = performance.now() - saveStartTime
+        console.log(`Total save operation took ${saveDuration.toFixed(2)}ms`)
       }
-    },
-    [],
-  )
+
+      // Save the current archive key for restoration
+      localStorage.setItem("lastArchiveKey", cacheKey)
+
+      const treeStartTime = performance.now()
+      const tree = buildDirectoryTree(fileList)
+      const treeDuration = performance.now() - treeStartTime
+      console.log(`Directory tree building took ${treeDuration.toFixed(2)}ms`)
+
+      setFiles(fileList)
+      setDirectoryTree(tree)
+      setContent("")
+      setCurrentView("about")
+    } catch (error) {
+      console.error("Error loading archive:", error)
+    } finally {
+      setIsLoading(false)
+    }
+  }, [])
+
 
   const visibleFiles = getVisibleFiles(directoryTree, expandedDirs)
 
@@ -631,7 +632,10 @@ function App() {
 
     return (
       <div className="p-6 max-w-2xl">
-        <h1 className="text-2xl font-bold mb-6">Archive Summary</h1>
+        <h1 className="text-2xl font-bold mb-6">Twitter Archive Explorer</h1>
+        <div className="mb-6">
+          <FileUpload onFileSelect={processFile} isLoading={isLoading} />
+        </div>
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded">
@@ -662,7 +666,7 @@ function App() {
                   </ClickableCount>
                 </div>
                 <div>
-                  Direct Messages:{" "}
+                  DM Conversations:{" "}
                   <ClickableCount filePath="data/direct-messages.js">
                     {formatCount(twitterCounts["data/direct-messages.js"])}
                   </ClickableCount>
@@ -718,61 +722,59 @@ function App() {
   return (
     <>
       <div className="w-64 min-w-64 border-r border-gray-200 dark:border-gray-700 flex flex-col flex-shrink-0">
-        {files.length > 0 && (
-          <div className="p-2 border-b border-gray-200 dark:border-gray-700">
-            <button
-              onClick={showAbout}
-              className={`block w-full text-left px-2 py-1 rounded text-sm font-medium ${
-                currentView === "about"
-                  ? "bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200"
-                  : "hover:bg-gray-200 dark:hover:bg-gray-700"
-              }`}
-            >
-              📊 About
-            </button>
-            <div className="mt-2 mb-1">
-              {[
-                { path: "data/like.js", name: "Likes" },
-                { path: "data/tweets.js", name: "Tweets" },
-                { path: "data/mute.js", name: "Muted" },
-                { path: "data/block.js", name: "Blocked" },
-                { path: "data/direct-messages.js", name: "Direct Messages" },
-                { path: "data/follower.js", name: "Followers" },
-                { path: "data/following.js", name: "Following" },
-              ].map(({ path: filePath, name: displayName }) => {
-                const fileExists = files.some((f) => f.path === filePath)
-                const fileEntry = files.find((f) => f.path === filePath)
-                const isSelected = selectedFilePath === filePath
-                return (
-                  <button
-                    key={filePath}
-                    onClick={() => fileEntry && handleFileClick(fileEntry)}
-                    disabled={!fileExists}
-                    className={`block w-full text-left px-2 py-1 rounded text-sm flex justify-between items-center ${
-                      isSelected
-                        ? "bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200"
-                        : fileExists
-                          ? "hover:bg-gray-200 dark:hover:bg-gray-700"
-                          : "text-gray-400 dark:text-gray-600 cursor-not-allowed"
-                    }`}
-                    style={{ paddingLeft: "8px" }}
-                  >
-                    <span className="truncate">📄&nbsp;{displayName}</span>
-                    {fileExists && (
-                      <span className="text-gray-500 dark:text-gray-400 text-xs ml-2 whitespace-nowrap">
-                        {twitterCounts[filePath] !== undefined
-                          ? twitterCounts[filePath].toLocaleString()
-                          : "..."}
-                      </span>
-                    )}
-                  </button>
-                )
-              })}
-            </div>
+        <div className="p-2 border-b border-gray-200 dark:border-gray-700">
+          <button
+            onClick={showAbout}
+            className={`block w-full text-left px-2 py-1 rounded text-sm font-medium ${
+              currentView === "about"
+                ? "bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200"
+                : "hover:bg-gray-200 dark:hover:bg-gray-700"
+            }`}
+          >
+            📊 About
+          </button>
+          <div className="mt-2 mb-1">
+            {[
+              { path: "data/like.js", name: "Likes" },
+              { path: "data/tweets.js", name: "Tweets" },
+              { path: "data/mute.js", name: "Muted" },
+              { path: "data/block.js", name: "Blocked" },
+              { path: "data/direct-messages.js", name: "DM Conversations" },
+              { path: "data/follower.js", name: "Followers" },
+              { path: "data/following.js", name: "Following" },
+            ].map(({ path: filePath, name: displayName }) => {
+              const fileExists = files.length > 0 && files.some((f) => f.path === filePath)
+              const fileEntry = files.find((f) => f.path === filePath)
+              const isSelected = selectedFilePath === filePath
+              return (
+                <button
+                  key={filePath}
+                  onClick={() => fileEntry && handleFileClick(fileEntry)}
+                  disabled={!fileExists}
+                  className={`block w-full text-left px-2 py-1 rounded text-sm flex justify-between items-center ${
+                    isSelected
+                      ? "bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200"
+                      : fileExists
+                        ? "hover:bg-gray-200 dark:hover:bg-gray-700 cursor-pointer"
+                        : "text-gray-600 dark:text-gray-300 cursor-default"
+                  }`}
+                  style={{ paddingLeft: "8px" }}
+                >
+                  <span className="truncate">📄&nbsp;{displayName}</span>
+                  {fileExists && (
+                    <span className="text-gray-500 dark:text-gray-400 text-xs ml-2 whitespace-nowrap">
+                      {twitterCounts[filePath] !== undefined
+                        ? twitterCounts[filePath].toLocaleString()
+                        : "..."}
+                    </span>
+                  )}
+                </button>
+              )
+            })}
           </div>
-        )}
+        </div>
         <div ref={directoryListRef} className="flex-1 overflow-y-auto p-2">
-          {directoryTree.map((node) => (
+          {files.length > 0 && directoryTree.map((node) => (
             <DirectoryNodeWrapper
               key={node.path}
               node={node}
@@ -788,36 +790,12 @@ function App() {
         </div>
       </div>
       <div className="flex-1 flex flex-col min-w-0">
-        <div className="p-2 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <input
-              type="file"
-              accept=".zip"
-              onChange={handleFileUpload}
-              className="text-sm"
-              disabled={isLoading}
-            />
-            {isLoading && (
-              <span className="text-sm text-gray-500">Loading...</span>
-            )}
-          </div>
-          <div className="flex items-center gap-2">
-            {files.length > 0 && (
-              <button
-                onClick={clearArchive}
-                className="px-2 py-1 border rounded text-sm"
-              >
-                Clear
-              </button>
-            )}
-            <button
-              onClick={toggleTheme}
-              className="px-2 py-1 border rounded text-sm"
-            >
-              Toggle
-            </button>
-          </div>
-        </div>
+        <HeaderBar 
+          files={files}
+          onClearArchive={clearArchive}
+          onToggleTheme={toggleTheme}
+          isDarkMode={isDarkMode}
+        />
         {currentView === "about" ? (
           <AboutPage />
         ) : (
