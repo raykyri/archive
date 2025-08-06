@@ -151,7 +151,7 @@ function App() {
     const fileList: FileEntry[] = [];
     for (const [path, entry] of Object.entries(entries)) {
       if (!entry.isDirectory) {
-        fileList.push({ path, entry, size: entry.uncompressedSize || 0 });
+        fileList.push({ path, entry, size: entry.size });
       }
     }
     setFiles(fileList);
