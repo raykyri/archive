@@ -2,7 +2,9 @@ import './style.css';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { unzip } from 'unzipit';
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
+import { formatFileSize, isBinary } from './helpers';
+import { VirtualizedTextViewer } from './VirtualizedTextViewer';
 
 // Set initial theme based on system preference
 if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
@@ -23,14 +25,6 @@ interface TreeNode {
   fileEntry?: FileEntry;
 }
 
-function formatFileSize(bytes: number): string {
-  if (bytes === 0) return '0 B';
-  const k = 1024;
-  const sizes = ['B', 'KB', 'MB', 'GB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  const size = bytes / Math.pow(k, i);
-  return `${size < 10 ? size.toFixed(1) : Math.round(size)} ${sizes[i]}`;
-}
 
 function buildDirectoryTree(files: FileEntry[]): TreeNode[] {
   const root: TreeNode[] = [];
@@ -133,6 +127,7 @@ function DirectoryNode({ node, onFileClick, level }: DirectoryNodeProps) {
   );
 }
 
+
 function App() {
   const [files, setFiles] = useState<FileEntry[]>([]);
   const [directoryTree, setDirectoryTree] = useState<TreeNode[]>([]);
@@ -196,23 +191,10 @@ function App() {
             Toggle
           </button>
         </div>
-        <pre className="p-4 flex-1 overflow-auto whitespace-pre-wrap">
-          {content}
-        </pre>
+        <VirtualizedTextViewer content={content} />
       </div>
     </>
   );
-}
-
-function isBinary(data: Uint8Array): boolean {
-  const len = Math.min(data.length, 1000);
-  for (let i = 0; i < len; i++) {
-    const byte = data[i];
-    if (byte === 0 || (byte < 7 || (byte > 13 && byte < 32))) {
-      return true;
-    }
-  }
-  return false;
 }
 
 const app = document.getElementById('app')!;
