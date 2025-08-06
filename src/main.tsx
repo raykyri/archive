@@ -78,23 +78,46 @@ function buildDirectoryTree(files: FileEntry[]): TreeNode[] {
   return root
 }
 
-interface DirectoryNodeProps {
-  node: TreeNode
-  onFileClick: (fileEntry: FileEntry) => void
-  level: number
+function getVisibleFiles(nodes: TreeNode[], expandedDirs: Set<string>, result: FileEntry[] = []): FileEntry[] {
+  for (const node of nodes) {
+    if (!node.isDirectory && node.fileEntry) {
+      result.push(node.fileEntry)
+    } else if (node.isDirectory && expandedDirs.has(node.path)) {
+      getVisibleFiles(node.children, expandedDirs, result)
+    }
+  }
+  return result
 }
 
-function DirectoryNode({ node, onFileClick, level }: DirectoryNodeProps) {
-  const [isExpanded, setIsExpanded] = useState(node.name === "data")
+interface DirectoryNodeProps extends DirectoryNodeWrapperProps {
+  fileIndex?: number
+}
+
+function DirectoryNode({ node, onFileClick, level, selectedFilePath, expandedDirs, setExpandedDirs, focusedFileIndex, fileIndex, visibleFiles }: DirectoryNodeProps) {
+  const isExpanded = expandedDirs.has(node.path)
   const indent = level * 12
 
   if (!node.isDirectory) {
     const fileSize = node.fileEntry ? formatFileSize(node.fileEntry.size) : ""
+    const isSelected = selectedFilePath === node.path
+    const isFocused = fileIndex === focusedFileIndex
     return (
       <button
         onClick={() => node.fileEntry && onFileClick(node.fileEntry)}
-        className="block w-full text-left px-2 py-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded text-sm flex justify-between items-center"
+        className={`block w-full text-left px-2 py-1 rounded text-sm flex justify-between items-center ${
+          isSelected
+            ? 'bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200'
+            : isFocused
+            ? 'bg-gray-100 dark:bg-gray-800'
+            : 'hover:bg-gray-200 dark:hover:bg-gray-700'
+        }`}
         style={{ paddingLeft: `${indent + 8}px` }}
+        tabIndex={isFocused ? 0 : -1}
+        ref={(ref) => {
+          if (isFocused && ref) {
+            ref.focus()
+          }
+        }}
       >
         <span className="truncate">📄&nbsp;{node.name}</span>
         <span className="text-gray-500 dark:text-gray-400 text-xs ml-2 whitespace-nowrap">
@@ -104,10 +127,22 @@ function DirectoryNode({ node, onFileClick, level }: DirectoryNodeProps) {
     )
   }
 
+  const toggleExpand = () => {
+    setExpandedDirs(prev => {
+      const newSet = new Set(prev)
+      if (isExpanded) {
+        newSet.delete(node.path)
+      } else {
+        newSet.add(node.path)
+      }
+      return newSet
+    })
+  }
+
   return (
     <div>
       <button
-        onClick={() => setIsExpanded(!isExpanded)}
+        onClick={toggleExpand}
         className="block w-full text-left px-2 py-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded text-sm font-medium"
         style={{ paddingLeft: `${indent + 8}px` }}
       >
@@ -116,11 +151,16 @@ function DirectoryNode({ node, onFileClick, level }: DirectoryNodeProps) {
       {isExpanded && (
         <div>
           {node.children.map((child) => (
-            <DirectoryNode
+            <DirectoryNodeWrapper
               key={child.path}
               node={child}
               onFileClick={onFileClick}
               level={level + 1}
+              selectedFilePath={selectedFilePath}
+              expandedDirs={expandedDirs}
+              setExpandedDirs={setExpandedDirs}
+              focusedFileIndex={focusedFileIndex}
+              visibleFiles={visibleFiles}
             />
           ))}
         </div>
@@ -129,13 +169,39 @@ function DirectoryNode({ node, onFileClick, level }: DirectoryNodeProps) {
   )
 }
 
+interface DirectoryNodeWrapperProps {
+  node: TreeNode
+  onFileClick: (fileEntry: FileEntry) => void
+  level: number
+  selectedFilePath: string
+  expandedDirs: Set<string>
+  setExpandedDirs: React.Dispatch<React.SetStateAction<Set<string>>>
+  focusedFileIndex: number
+  visibleFiles: FileEntry[]
+}
+
+function DirectoryNodeWrapper(props: DirectoryNodeWrapperProps) {
+  const { node, visibleFiles } = props
+  const fileIndex = node.fileEntry ? visibleFiles.findIndex(f => f.path === node.path) : undefined
+  
+  return (
+    <DirectoryNode
+      {...props}
+      fileIndex={fileIndex}
+    />
+  )
+}
+
 function App() {
   const [files, setFiles] = useState<FileEntry[]>([])
   const [directoryTree, setDirectoryTree] = useState<TreeNode[]>([])
   const [content, setContent] = useState<string>("")
   const [currentView, setCurrentView] = useState<'about' | 'file'>('about')
+  const [selectedFilePath, setSelectedFilePath] = useState<string>("")
   const [isLoading, setIsLoading] = useState(false)
   const hasInitialized = useRef(false)
+  const [focusedFileIndex, setFocusedFileIndex] = useState<number>(-1)
+  const [expandedDirs, setExpandedDirs] = useState<Set<string>>(new Set(["data"]))
 
   useEffect(() => {
     if (hasInitialized.current) return
@@ -184,6 +250,7 @@ function App() {
     setFiles([])
     setDirectoryTree([])
     setContent("")
+    setSelectedFilePath("")
     setCurrentView('about')
     localStorage.removeItem("lastArchiveKey")
 
@@ -280,6 +347,8 @@ function App() {
     [],
   )
 
+  const visibleFiles = getVisibleFiles(directoryTree, expandedDirs)
+
   const handleFileClick = useCallback(async (fileEntry: FileEntry) => {
     const uint8 = await fileEntry.entry.arrayBuffer()
     const data = new Uint8Array(uint8)
@@ -288,12 +357,59 @@ function App() {
     } else {
       setContent(new TextDecoder().decode(data))
     }
+    setSelectedFilePath(fileEntry.path)
     setCurrentView('file')
-  }, [])
+    
+    // Set focused index to the clicked file
+    const fileIndex = visibleFiles.findIndex(f => f.path === fileEntry.path)
+    if (fileIndex >= 0) {
+      setFocusedFileIndex(fileIndex)
+    }
+  }, [visibleFiles])
 
   const showAbout = useCallback(() => {
+    setSelectedFilePath("")
     setCurrentView('about')
   }, [])
+
+  const handleKeyDown = useCallback((event: KeyboardEvent) => {
+    if (visibleFiles.length === 0) return
+    
+    if (event.key === 'ArrowDown') {
+      event.preventDefault()
+      setFocusedFileIndex(prev => {
+        if (prev === -1) return 0
+        const nextIndex = prev + 1
+        return nextIndex < visibleFiles.length ? nextIndex : prev
+      })
+    } else if (event.key === 'ArrowUp') {
+      event.preventDefault()
+      setFocusedFileIndex(prev => {
+        if (prev === -1) return 0
+        const nextIndex = prev - 1
+        return nextIndex >= 0 ? nextIndex : prev
+      })
+    } else if (event.key === 'Enter' && focusedFileIndex >= 0) {
+      event.preventDefault()
+      const fileEntry = visibleFiles[focusedFileIndex]
+      if (fileEntry) {
+        handleFileClick(fileEntry)
+      }
+    }
+  }, [visibleFiles, focusedFileIndex, handleFileClick])
+
+  useEffect(() => {
+    if (focusedFileIndex >= visibleFiles.length) {
+      setFocusedFileIndex(visibleFiles.length > 0 ? visibleFiles.length - 1 : -1)
+    }
+  }, [visibleFiles.length, focusedFileIndex])
+
+  useEffect(() => {
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [handleKeyDown])
 
   const AboutPage = () => (
     <div className="p-6 max-w-2xl">
@@ -351,11 +467,16 @@ function App() {
           </div>
         )}
         {directoryTree.map((node) => (
-          <DirectoryNode
+          <DirectoryNodeWrapper
             key={node.path}
             node={node}
             onFileClick={handleFileClick}
             level={0}
+            selectedFilePath={selectedFilePath}
+            expandedDirs={expandedDirs}
+            setExpandedDirs={setExpandedDirs}
+            focusedFileIndex={focusedFileIndex}
+            visibleFiles={visibleFiles}
           />
         ))}
       </div>
