@@ -462,6 +462,46 @@ function App() {
     }
   }, [files, parseTwitterArchiveData])
 
+  // Update URL hash when view changes
+  useEffect(() => {
+    if (currentView === 'about') {
+      window.location.hash = ''
+    } else if (selectedFilePath) {
+      window.location.hash = encodeURIComponent(selectedFilePath)
+    }
+  }, [currentView, selectedFilePath])
+
+  // Handle hash changes (back/forward navigation)
+  useEffect(() => {
+    const handleHashChange = () => {
+      const hash = window.location.hash.slice(1) // Remove #
+      if (!hash) {
+        showAbout()
+      } else {
+        const decodedPath = decodeURIComponent(hash)
+        const fileEntry = files.find(f => f.path === decodedPath)
+        if (fileEntry) {
+          handleFileClick(fileEntry)
+        }
+      }
+    }
+
+    // Handle initial hash on page load
+    if (files.length > 0) {
+      const initialHash = window.location.hash.slice(1)
+      if (initialHash) {
+        const decodedPath = decodeURIComponent(initialHash)
+        const fileEntry = files.find(f => f.path === decodedPath)
+        if (fileEntry) {
+          handleFileClick(fileEntry)
+        }
+      }
+    }
+
+    window.addEventListener('hashchange', handleHashChange)
+    return () => window.removeEventListener('hashchange', handleHashChange)
+  }, [files, handleFileClick, showAbout])
+
   const handleKeyDown = useCallback(
     (event: KeyboardEvent) => {
       if (visibleFiles.length === 0) return
