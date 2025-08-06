@@ -86,7 +86,7 @@ export function VirtualizedTextViewer({ content }: VirtualizedTextViewerProps) {
   return (
     <div
       ref={parentRef}
-      className="p-4 flex-1 overflow-auto"
+      className="p-4 pb-2 flex-1 overflow-auto"
       style={{ height: "100%" }}
     >
       {/* Hidden element for measuring text height */}
