@@ -2,6 +2,7 @@ import "./style.css"
 import { StrictMode } from "react"
 import { createRoot } from "react-dom/client"
 import { unzip } from "unzipit"
+import JSZip from "jszip"
 import React, { useState, useCallback, useEffect, useRef } from "react"
 import { formatFileSize, isBinary } from "./helpers"
 import { VirtualizedTextViewer } from "./VirtualizedTextViewer"
@@ -235,7 +236,7 @@ function App() {
     null,
   )
   const [isDarkMode, setIsDarkMode] = useState(
-    document.documentElement.classList.contains("dark")
+    document.documentElement.classList.contains("dark"),
   )
 
   useEffect(() => {
@@ -304,6 +305,50 @@ function App() {
       fileInput.value = ""
     }
   }, [])
+
+  const exportCoreData = useCallback(async () => {
+    const coreFiles = [
+      "data/tweets.js",
+      "data/like.js",
+      "data/follower.js",
+      "data/following.js",
+      "data/account.js",
+      "data/README.txt",
+      "data/profile.js",
+      "data/note-tweet.js",
+      "data/community-tweet.js",
+    ]
+
+    const zip = new JSZip()
+    const dataFolder = zip.folder("data")
+
+    for (const filePath of coreFiles) {
+      const file = files.find((f) => f.path === filePath)
+      if (file) {
+        try {
+          const uint8 = await file.entry.arrayBuffer()
+          const content = new Uint8Array(uint8)
+          dataFolder?.file(filePath.replace("data/", ""), content)
+        } catch (error) {
+          console.error(`Error reading ${filePath}:`, error)
+        }
+      }
+    }
+
+    try {
+      const zipBlob = await zip.generateAsync({ type: "blob" })
+      const url = URL.createObjectURL(zipBlob)
+      const link = document.createElement("a")
+      link.href = url
+      link.download = "twitter-core-data.zip"
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(url)
+    } catch (error) {
+      console.error("Error creating zip file:", error)
+    }
+  }, [files])
 
   const processFile = useCallback(async (file: File) => {
     // Clear previous archive state first
@@ -384,7 +429,6 @@ function App() {
       setIsLoading(false)
     }
   }, [])
-
 
   const visibleFiles = getVisibleFiles(directoryTree, expandedDirs)
 
@@ -715,6 +759,31 @@ function App() {
             </div>
           </div>
         </div>
+        {files.length > 0 && (
+          <div className="mt-6">
+            <button
+              onClick={exportCoreData}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm font-medium"
+            >
+              📦 Export Core Data
+            </button>
+            <p className="text-sm text-gray-500 dark:text-gray-300 mt-2">
+              Downloads core data (tweets, likes, followers, following, account
+              info, profile, long tweets, community tweets) as a ZIP file. This
+              can be uploaded to the{" "}
+              <a
+                className="underline"
+                href="https://www.community-archive.org/"
+                target="_blank"
+                noreferrer
+                noopener
+              >
+                Community Archive
+              </a>
+              !
+            </p>
+          </div>
+        )}
       </div>
     )
   }
@@ -743,7 +812,8 @@ function App() {
               { path: "data/follower.js", name: "Followers" },
               { path: "data/following.js", name: "Following" },
             ].map(({ path: filePath, name: displayName }) => {
-              const fileExists = files.length > 0 && files.some((f) => f.path === filePath)
+              const fileExists =
+                files.length > 0 && files.some((f) => f.path === filePath)
               const fileEntry = files.find((f) => f.path === filePath)
               const isSelected = selectedFilePath === filePath
               return (
@@ -774,23 +844,24 @@ function App() {
           </div>
         </div>
         <div ref={directoryListRef} className="flex-1 overflow-y-auto p-2">
-          {files.length > 0 && directoryTree.map((node) => (
-            <DirectoryNodeWrapper
-              key={node.path}
-              node={node}
-              onFileClick={handleFileClick}
-              level={0}
-              selectedFilePath={selectedFilePath}
-              expandedDirs={expandedDirs}
-              setExpandedDirs={setExpandedDirs}
-              focusedFileIndex={focusedFileIndex}
-              visibleFiles={visibleFiles}
-            />
-          ))}
+          {files.length > 0 &&
+            directoryTree.map((node) => (
+              <DirectoryNodeWrapper
+                key={node.path}
+                node={node}
+                onFileClick={handleFileClick}
+                level={0}
+                selectedFilePath={selectedFilePath}
+                expandedDirs={expandedDirs}
+                setExpandedDirs={setExpandedDirs}
+                focusedFileIndex={focusedFileIndex}
+                visibleFiles={visibleFiles}
+              />
+            ))}
         </div>
       </div>
       <div className="flex-1 flex flex-col min-w-0">
-        <HeaderBar 
+        <HeaderBar
           files={files}
           onClearArchive={clearArchive}
           onToggleTheme={toggleTheme}
