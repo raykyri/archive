@@ -825,7 +825,7 @@ function App() {
                       ? "bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200"
                       : fileExists
                         ? "hover:bg-gray-200 dark:hover:bg-gray-700 cursor-pointer"
-                        : "text-gray-600 dark:text-gray-300 cursor-default"
+                        : "text-gray-600 dark:text-gray-400"
                   }`}
                   style={{ paddingLeft: "8px" }}
                 >
