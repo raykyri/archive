@@ -775,8 +775,7 @@ function App() {
                 className="underline"
                 href="https://www.community-archive.org/"
                 target="_blank"
-                noreferrer
-                noopener
+                rel="noopener noreferrer"
               >
                 Community Archive
               </a>
