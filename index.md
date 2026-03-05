@@ -1,6 +1,6 @@
 ### Human-AI Interaction Lab Notes
 
-I'm making [Braid](https://braid.md), a multiplayer loom, and [Input](https://input.md), a frontend for GitHub that lets you use Git repos as wikis and knowledge bases.
+This notebook covers [Braid](https://braid.md), a multiplayer loom, and [Input](https://input.md), a frontend for GitHub that lets you use Git repos as wikis and knowledge bases.
 
 Braid is in early development. Input is stable, but will move to a different domain soon. Both are pre-release software with rough edges, but you're welcome to log in and play around.
 
